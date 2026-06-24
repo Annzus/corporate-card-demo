@@ -39,8 +39,7 @@ class TransactionListController extends AsyncNotifier<List<Transaction>> {
         .fetchTransactions(brandId: 'business');
   }
 
-  Future<void> retry() async {
+  void retry() {
     ref.invalidateSelf();
-    await future;
   }
 }
