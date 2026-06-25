@@ -1,3 +1,4 @@
+import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ class DemoSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final failNextLoad = ref.watch(failNextTransactionLoadProvider);
+    final failNextUpload = ref.watch(failNextReceiptUploadProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('デモ設定')),
@@ -22,6 +24,13 @@ class DemoSettingsPage extends ConsumerWidget {
             onChanged: (value) {
               ref.read(failNextTransactionLoadProvider.notifier).set(value);
               ref.invalidate(transactionListControllerProvider);
+            },
+          ),
+          SwitchListTile(
+            title: const Text('次回アップロードを失敗させる'),
+            value: failNextUpload,
+            onChanged: (value) {
+              ref.read(failNextReceiptUploadProvider.notifier).set(value);
             },
           ),
         ],

@@ -1,4 +1,7 @@
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
+import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
+import 'package:corporate_card_companion/features/receipt_upload/domain/upload_job.dart';
+import 'package:corporate_card_companion/features/receipt_upload/presentation/widgets/upload_status_banner.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_filter.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
 import 'package:corporate_card_companion/features/transactions/domain/transaction.dart';
@@ -22,6 +25,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   @override
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionListControllerProvider);
+    final uploadJobs = ref.watch(uploadQueueControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +66,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           if (items.isEmpty) {
             return const Center(child: Text('該当する明細はありません'));
           }
-          final rows = _buildRows(items, _filter);
+          final rows = _buildRows(items, _filter, uploadJobs);
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: rows.length,
@@ -87,8 +91,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
+                _UploadRow(:final job) => UploadStatusBanner(
+                  job: job,
+                  onTap: () {
+                    context.push('/transactions/${job.transactionId}');
+                  },
+                ),
                 _TransactionRow(:final transaction) => TransactionListItem(
                   transaction: transaction,
+                  receiptStatus: ref
+                      .read(uploadQueueControllerProvider.notifier)
+                      .receiptStatusFor(transaction),
                 ),
                 _EmptyRow() => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 48),
@@ -105,9 +118,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   List<_ListRow> _buildRows(
     List<Transaction> transactions,
     TransactionFilter filter,
+    List<UploadJob> uploadJobs,
   ) {
     final filtered = filter.apply(transactions);
     final rows = <_ListRow>[_SummaryRow(transactions), const _FilterRow()];
+    final visibleJob = uploadJobs
+        .where((job) => job.state != UploadJobState.succeeded)
+        .firstOrNull;
+    if (visibleJob != null) rows.add(_UploadRow(visibleJob));
     if (filtered.isEmpty) return [...rows, const _EmptyRow()];
 
     String? currentDate;
@@ -169,6 +187,12 @@ final class _DateHeaderRow extends _ListRow {
   const _DateHeaderRow(this.label);
 
   final String label;
+}
+
+final class _UploadRow extends _ListRow {
+  const _UploadRow(this.job);
+
+  final UploadJob job;
 }
 
 final class _TransactionRow extends _ListRow {

@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:corporate_card_companion/app/app.dart';
 import 'package:corporate_card_companion/app/router.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
+import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
+import 'package:corporate_card_companion/features/receipt_upload/domain/receipt_upload_repository.dart';
+import 'package:corporate_card_companion/features/receipt_upload/domain/upload_job.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
 import 'package:corporate_card_companion/features/transactions/domain/money.dart';
 import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
@@ -215,12 +219,99 @@ void main() {
 
     expect(find.text('画像を選択できませんでした。設定を確認して再度お試しください。'), findsOneWidget);
   });
+
+  testWidgets('keeps upload visible after returning to list', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final uploadCompleter = Completer<void>();
+
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository(() async => [_transaction()]),
+        initialLocation: '/transactions/txn_business_001',
+        imagePicker: _FakeReceiptImagePicker(
+          () async => PickedReceiptImage(
+            fileName: 'receipt.png',
+            bytes: _transparentPngBytes(),
+          ),
+        ),
+        uploadRepository: _FakeUploadRepository(
+          (job, onProgress) => uploadCompleter.future,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'アップロード'));
+    await tester.pump();
+
+    expect(find.text('アップロード中 0%'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('アップロード中 0%'), findsOneWidget);
+    expect(find.text('receipt.png'), findsOneWidget);
+
+    uploadCompleter.complete();
+  });
+
+  testWidgets('retries failed receipt upload', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var shouldFail = true;
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository(() async => [_transaction()]),
+        initialLocation: '/transactions/txn_business_001',
+        imagePicker: _FakeReceiptImagePicker(
+          () async => PickedReceiptImage(
+            fileName: 'receipt.png',
+            bytes: _transparentPngBytes(),
+          ),
+        ),
+        uploadRepository: _FakeUploadRepository((job, onProgress) async {
+          if (shouldFail) throw Exception('fail');
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'アップロード'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('アップロードに失敗しました。再試行してください。'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '証憑を添付'))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '削除'))
+          .onPressed,
+      isNull,
+    );
+
+    shouldFail = false;
+    await tester.tap(find.text('再試行'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('提出済み'), findsWidgets);
+  });
 }
 
 Widget _appWithRepository(
   TransactionRepository repository, {
   String initialLocation = '/',
   ReceiptImagePicker? imagePicker,
+  ReceiptUploadRepository? uploadRepository,
 }) {
   appRouter.go(initialLocation);
   return ProviderScope(
@@ -228,6 +319,8 @@ Widget _appWithRepository(
       transactionRepositoryProvider.overrideWithValue(repository),
       if (imagePicker != null)
         receiptImagePickerProvider.overrideWithValue(imagePicker),
+      if (uploadRepository != null)
+        receiptUploadRepositoryProvider.overrideWithValue(uploadRepository),
     ],
     child: const BizCardDemoApp(),
   );
@@ -251,6 +344,20 @@ final class _FakeReceiptImagePicker implements ReceiptImagePicker {
 
   @override
   Future<PickedReceiptImage?> pickImage() => _pick();
+}
+
+final class _FakeUploadRepository implements ReceiptUploadRepository {
+  const _FakeUploadRepository(this._upload);
+
+  final Future<void> Function(UploadJob, void Function(double)) _upload;
+
+  @override
+  Future<void> upload({
+    required UploadJob job,
+    required void Function(double progress) onProgress,
+  }) {
+    return _upload(job, onProgress);
+  }
 }
 
 Transaction _transaction({

@@ -1,8 +1,10 @@
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
 import 'package:corporate_card_companion/core/formatting/money_formatter.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
+import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
 import 'package:corporate_card_companion/features/receipt_upload/presentation/widgets/receipt_attachment_section.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
+import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
 import 'package:corporate_card_companion/features/transactions/domain/transaction.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/receipt_status_badge.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/transaction_status_badge.dart';
@@ -71,6 +73,16 @@ class _TransactionDetailContentState
   @override
   Widget build(BuildContext context) {
     final transaction = widget.transaction;
+    final job = ref.watch(
+      uploadQueueControllerProvider.select(
+        (jobs) => jobs
+            .where((job) => job.transactionId == transaction.id)
+            .firstOrNull,
+      ),
+    );
+    final ReceiptStatus receiptStatus = ref
+        .read(uploadQueueControllerProvider.notifier)
+        .receiptStatusFor(transaction);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -90,7 +102,7 @@ class _TransactionDetailContentState
           runSpacing: 4,
           children: [
             TransactionStatusBadge(status: transaction.status),
-            ReceiptStatusBadge(status: transaction.receiptStatus),
+            ReceiptStatusBadge(status: receiptStatus),
           ],
         ),
         const SizedBox(height: 16),
@@ -105,8 +117,9 @@ class _TransactionDetailContentState
         _InfoTile(label: '取引ID', value: _shortId(transaction.id)),
         const SizedBox(height: 16),
         ReceiptAttachmentSection(
-          receiptStatus: transaction.receiptStatus,
+          receiptStatus: receiptStatus,
           image: _image,
+          job: job,
           memoController: _memoController,
           isPicking: _isPicking,
           errorMessage: _errorMessage,
@@ -116,6 +129,16 @@ class _TransactionDetailContentState
               _image = null;
               _errorMessage = null;
             });
+          },
+          onUpload: () {
+            final image = _image;
+            if (image == null) return;
+            ref
+                .read(uploadQueueControllerProvider.notifier)
+                .startUpload(transaction: transaction, image: image);
+          },
+          onRetry: () {
+            ref.read(uploadQueueControllerProvider.notifier).retry(transaction);
           },
         ),
       ],

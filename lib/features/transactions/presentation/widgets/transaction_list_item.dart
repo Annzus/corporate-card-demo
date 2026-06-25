@@ -1,5 +1,6 @@
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
 import 'package:corporate_card_companion/core/formatting/money_formatter.dart';
+import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
 import 'package:corporate_card_companion/features/transactions/domain/transaction.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/receipt_status_badge.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/transaction_status_badge.dart';
@@ -7,9 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class TransactionListItem extends StatelessWidget {
-  const TransactionListItem({super.key, required this.transaction});
+  TransactionListItem({
+    super.key,
+    required this.transaction,
+    ReceiptStatus? receiptStatus,
+  }) : receiptStatus = receiptStatus ?? transaction.receiptStatus;
 
   final Transaction transaction;
+  final ReceiptStatus receiptStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +47,7 @@ class TransactionListItem extends StatelessWidget {
                       runSpacing: 4,
                       children: [
                         TransactionStatusBadge(status: transaction.status),
-                        ReceiptStatusBadge(status: transaction.receiptStatus),
+                        ReceiptStatusBadge(status: receiptStatus),
                       ],
                     ),
                   ],
