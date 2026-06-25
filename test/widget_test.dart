@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:corporate_card_companion/app/app.dart';
 import 'package:corporate_card_companion/app/router.dart';
+import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
 import 'package:corporate_card_companion/features/transactions/domain/money.dart';
 import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
@@ -150,15 +153,82 @@ void main() {
     expect(find.text('利用明細詳細'), findsOneWidget);
     expect(find.text('AWS JAPAN'), findsOneWidget);
   });
+
+  testWidgets('selects and removes receipt image with memo limit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository(() async => [_transaction()]),
+        initialLocation: '/transactions/txn_business_001',
+        imagePicker: _FakeReceiptImagePicker(
+          () async => PickedReceiptImage(
+            fileName: 'receipt.png',
+            bytes: _transparentPngBytes(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('receipt.png'), findsOneWidget);
+    expect(find.text('削除'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '削除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('receipt.png'), findsNothing);
+    expect(find.text('証憑が未提出です'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'あ' * 201);
+    await tester.pump();
+
+    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editableText.controller.text.length, 200);
+  });
+
+  testWidgets('handles cancelled and failed receipt selection', (tester) async {
+    var fail = false;
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository(() async => [_transaction()]),
+        initialLocation: '/transactions/txn_business_001',
+        imagePicker: _FakeReceiptImagePicker(() async {
+          if (fail) throw Exception('permission_denied');
+          return null;
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('画像を選択できませんでした。設定を確認して再度お試しください。'), findsNothing);
+
+    fail = true;
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('画像を選択できませんでした。設定を確認して再度お試しください。'), findsOneWidget);
+  });
 }
 
 Widget _appWithRepository(
   TransactionRepository repository, {
   String initialLocation = '/',
+  ReceiptImagePicker? imagePicker,
 }) {
   appRouter.go(initialLocation);
   return ProviderScope(
-    overrides: [transactionRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      transactionRepositoryProvider.overrideWithValue(repository),
+      if (imagePicker != null)
+        receiptImagePickerProvider.overrideWithValue(imagePicker),
+    ],
     child: const BizCardDemoApp(),
   );
 }
@@ -172,6 +242,15 @@ final class _FakeTransactionRepository implements TransactionRepository {
   Future<List<Transaction>> fetchTransactions({required String brandId}) {
     return _fetch();
   }
+}
+
+final class _FakeReceiptImagePicker implements ReceiptImagePicker {
+  const _FakeReceiptImagePicker(this._pick);
+
+  final Future<PickedReceiptImage?> Function() _pick;
+
+  @override
+  Future<PickedReceiptImage?> pickImage() => _pick();
 }
 
 Transaction _transaction({
@@ -196,4 +275,78 @@ Transaction _transaction({
     receiptStatus: receiptStatus,
     memo: null,
   );
+}
+
+Uint8List _transparentPngBytes() {
+  return Uint8List.fromList([
+    137,
+    80,
+    78,
+    71,
+    13,
+    10,
+    26,
+    10,
+    0,
+    0,
+    0,
+    13,
+    73,
+    72,
+    68,
+    82,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    8,
+    6,
+    0,
+    0,
+    0,
+    31,
+    21,
+    196,
+    137,
+    0,
+    0,
+    0,
+    13,
+    73,
+    68,
+    65,
+    84,
+    120,
+    156,
+    99,
+    248,
+    255,
+    255,
+    63,
+    0,
+    5,
+    254,
+    2,
+    254,
+    167,
+    53,
+    129,
+    132,
+    0,
+    0,
+    0,
+    0,
+    73,
+    69,
+    78,
+    68,
+    174,
+    66,
+    96,
+    130,
+  ]);
 }

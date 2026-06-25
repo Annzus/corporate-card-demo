@@ -1,7 +1,8 @@
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
 import 'package:corporate_card_companion/core/formatting/money_formatter.dart';
+import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
+import 'package:corporate_card_companion/features/receipt_upload/presentation/widgets/receipt_attachment_section.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
-import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
 import 'package:corporate_card_companion/features/transactions/domain/transaction.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/receipt_status_badge.dart';
 import 'package:corporate_card_companion/features/transactions/presentation/widgets/transaction_status_badge.dart';
@@ -38,13 +39,39 @@ class TransactionDetailPage extends ConsumerWidget {
   }
 }
 
-class _TransactionDetailContent extends StatelessWidget {
+class _TransactionDetailContent extends ConsumerStatefulWidget {
   const _TransactionDetailContent({required this.transaction});
 
   final Transaction transaction;
 
   @override
+  ConsumerState<_TransactionDetailContent> createState() =>
+      _TransactionDetailContentState();
+}
+
+class _TransactionDetailContentState
+    extends ConsumerState<_TransactionDetailContent> {
+  final _memoController = TextEditingController();
+  PickedReceiptImage? _image;
+  String? _errorMessage;
+  bool _isPicking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _memoController.text = widget.transaction.memo ?? '';
+  }
+
+  @override
+  void dispose() {
+    _memoController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final transaction = widget.transaction;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -76,9 +103,21 @@ class _TransactionDetailContent extends StatelessWidget {
           value: '${transaction.cardNickname} ・ •••• ${transaction.cardLast4}',
         ),
         _InfoTile(label: '取引ID', value: _shortId(transaction.id)),
-        _InfoTile(label: 'メモ', value: transaction.memo ?? 'なし'),
         const SizedBox(height: 16),
-        _ReceiptSection(status: transaction.receiptStatus),
+        ReceiptAttachmentSection(
+          receiptStatus: transaction.receiptStatus,
+          image: _image,
+          memoController: _memoController,
+          isPicking: _isPicking,
+          errorMessage: _errorMessage,
+          onPick: _pickImage,
+          onRemove: () {
+            setState(() {
+              _image = null;
+              _errorMessage = null;
+            });
+          },
+        ),
       ],
     );
   }
@@ -86,6 +125,31 @@ class _TransactionDetailContent extends StatelessWidget {
   String _shortId(String id) {
     if (id.length <= 12) return id;
     return '${id.substring(0, 12)}...';
+  }
+
+  Future<void> _pickImage() async {
+    setState(() {
+      _isPicking = true;
+      _errorMessage = null;
+    });
+    try {
+      final image = await ref.read(receiptImagePickerProvider).pickImage();
+      if (!mounted) return;
+      setState(() {
+        if (image != null) _image = image;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = '画像を選択できませんでした。設定を確認して再度お試しください。';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPicking = false;
+        });
+      }
+    }
   }
 }
 
@@ -108,43 +172,6 @@ class _InfoTile extends StatelessWidget {
           ),
           Expanded(child: Text(value)),
         ],
-      ),
-    );
-  }
-}
-
-class _ReceiptSection extends StatelessWidget {
-  const _ReceiptSection({required this.status});
-
-  final ReceiptStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = switch (status) {
-      ReceiptStatus.missing => '証憑が未提出です',
-      ReceiptStatus.selected => '証憑が選択されています',
-      ReceiptStatus.uploading => 'アップロード中',
-      ReceiptStatus.attached => '提出済み',
-      ReceiptStatus.failed => 'アップロードに失敗しました',
-    };
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('証憑', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(text),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('証憑を添付'),
-            ),
-          ],
-        ),
       ),
     );
   }

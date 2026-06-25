@@ -16,6 +16,8 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>BizCard Demo</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>証憑画像を添付するために写真ライブラリを使用します。</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
