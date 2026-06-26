@@ -69,6 +69,7 @@ void main() {
 
     expect(find.text('デモ設定'), findsOneWidget);
     expect(find.text('デモ専用'), findsOneWidget);
+    expect(find.text('最近の計測イベント'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();

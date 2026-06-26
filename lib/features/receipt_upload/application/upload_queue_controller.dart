@@ -1,3 +1,5 @@
+import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
+import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
 import 'package:corporate_card_companion/features/receipt_upload/data/fake_receipt_upload_repository.dart';
 import 'package:corporate_card_companion/features/receipt_upload/domain/receipt_upload_repository.dart';
@@ -72,6 +74,16 @@ class UploadQueueController extends Notifier<List<UploadJob>> {
       errorMessage: null,
     );
     _upsert(job);
+    ref
+        .read(debugAnalyticsServiceProvider.notifier)
+        .track(
+          AnalyticsEventName.receiptUploadStarted,
+          properties: {
+            'brandId': transaction.brandId,
+            'transactionStatus': transaction.status.name,
+            'receiptStatus': transaction.receiptStatus.name,
+          },
+        );
     await _run(job);
   }
 
@@ -88,6 +100,17 @@ class UploadQueueController extends Notifier<List<UploadJob>> {
       errorMessage: null,
     );
     _upsert(retryJob);
+    ref
+        .read(debugAnalyticsServiceProvider.notifier)
+        .track(
+          AnalyticsEventName.receiptUploadRetried,
+          properties: {
+            'brandId': transaction.brandId,
+            'transactionStatus': transaction.status.name,
+            'receiptStatus': ReceiptStatus.failed.name,
+            'retryCount': retryJob.retryCount,
+          },
+        );
     await _run(retryJob);
   }
 
@@ -105,6 +128,7 @@ class UploadQueueController extends Notifier<List<UploadJob>> {
   }
 
   Future<void> _run(UploadJob job) async {
+    final startedAt = DateTime.now();
     try {
       await ref
           .read(receiptUploadRepositoryProvider)
@@ -113,6 +137,16 @@ class UploadQueueController extends Notifier<List<UploadJob>> {
             onProgress: (progress) => _updateProgress(job, progress),
           );
       _upsert(job.copyWith(progress: 1, state: UploadJobState.succeeded));
+      ref
+          .read(debugAnalyticsServiceProvider.notifier)
+          .track(
+            AnalyticsEventName.receiptUploadSucceeded,
+            properties: {
+              'brandId': job.brandId,
+              'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+              'retryCount': job.retryCount,
+            },
+          );
     } catch (_) {
       _upsert(
         job.copyWith(
@@ -120,6 +154,17 @@ class UploadQueueController extends Notifier<List<UploadJob>> {
           errorMessage: 'アップロードに失敗しました。再試行してください。',
         ),
       );
+      ref
+          .read(debugAnalyticsServiceProvider.notifier)
+          .track(
+            AnalyticsEventName.receiptUploadFailed,
+            properties: {
+              'brandId': job.brandId,
+              'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+              'retryCount': job.retryCount,
+              'errorType': 'receipt_upload_failed',
+            },
+          );
     }
   }
 

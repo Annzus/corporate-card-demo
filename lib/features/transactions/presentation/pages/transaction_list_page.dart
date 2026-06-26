@@ -1,3 +1,5 @@
+import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
+import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
 import 'package:corporate_card_companion/features/receipt_upload/domain/upload_job.dart';
@@ -21,6 +23,20 @@ class TransactionListPage extends ConsumerStatefulWidget {
 
 class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   TransactionFilter _filter = TransactionFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(debugAnalyticsServiceProvider.notifier)
+          .track(
+            AnalyticsEventName.transactionListViewed,
+            properties: {'brandId': 'business'},
+          );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +95,16 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                 _FilterRow() => _FilterChips(
                   selected: _filter,
                   onSelected: (filter) {
+                    if (filter == _filter) return;
                     setState(() {
                       _filter = filter;
                     });
+                    ref
+                        .read(debugAnalyticsServiceProvider.notifier)
+                        .track(
+                          AnalyticsEventName.transactionFilterChanged,
+                          properties: {'brandId': 'business'},
+                        );
                   },
                 ),
                 _DateHeaderRow(:final label) => Padding(

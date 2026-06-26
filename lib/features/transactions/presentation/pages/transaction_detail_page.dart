@@ -1,3 +1,5 @@
+import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
+import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
 import 'package:corporate_card_companion/core/formatting/money_formatter.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
@@ -11,13 +13,21 @@ import 'package:corporate_card_companion/features/transactions/presentation/widg
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class TransactionDetailPage extends ConsumerWidget {
+class TransactionDetailPage extends ConsumerStatefulWidget {
   const TransactionDetailPage({super.key, required this.transactionId});
 
   final String transactionId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransactionDetailPage> createState() =>
+      _TransactionDetailPageState();
+}
+
+class _TransactionDetailPageState extends ConsumerState<TransactionDetailPage> {
+  bool _trackedOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final transactions = ref.watch(transactionListControllerProvider);
 
     return Scaffold(
@@ -31,13 +41,32 @@ class TransactionDetailPage extends ConsumerWidget {
         ),
         data: (items) {
           final transaction = items
-              .where((item) => item.id == transactionId)
+              .where((item) => item.id == widget.transactionId)
               .firstOrNull;
           if (transaction == null) return const _NotFoundMessage();
+          _trackOpen(transaction);
           return _TransactionDetailContent(transaction: transaction);
         },
       ),
     );
+  }
+
+  void _trackOpen(Transaction transaction) {
+    if (_trackedOpen) return;
+    _trackedOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(debugAnalyticsServiceProvider.notifier)
+          .track(
+            AnalyticsEventName.transactionDetailOpened,
+            properties: {
+              'brandId': transaction.brandId,
+              'transactionStatus': transaction.status.name,
+              'receiptStatus': transaction.receiptStatus.name,
+            },
+          );
+    });
   }
 }
 
@@ -151,6 +180,17 @@ class _TransactionDetailContentState
   }
 
   Future<void> _pickImage() async {
+    final transaction = widget.transaction;
+    ref
+        .read(debugAnalyticsServiceProvider.notifier)
+        .track(
+          AnalyticsEventName.receiptAttachTapped,
+          properties: {
+            'brandId': transaction.brandId,
+            'transactionStatus': transaction.status.name,
+            'receiptStatus': transaction.receiptStatus.name,
+          },
+        );
     setState(() {
       _isPicking = true;
       _errorMessage = null;
@@ -161,6 +201,18 @@ class _TransactionDetailContentState
       setState(() {
         if (image != null) _image = image;
       });
+      if (image != null) {
+        ref
+            .read(debugAnalyticsServiceProvider.notifier)
+            .track(
+              AnalyticsEventName.receiptImageSelected,
+              properties: {
+                'brandId': transaction.brandId,
+                'transactionStatus': transaction.status.name,
+                'receiptStatus': ReceiptStatus.selected.name,
+              },
+            );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {

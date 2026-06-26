@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
+import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
 import 'package:corporate_card_companion/features/receipt_upload/domain/receipt_upload_repository.dart';
@@ -104,6 +106,51 @@ void main() {
 
     firstCompleter.complete();
     secondCompleter.complete();
+  });
+
+  test('records upload analytics without sensitive properties', () async {
+    var shouldFail = true;
+    final container = ProviderContainer(
+      overrides: [
+        receiptUploadRepositoryProvider.overrideWithValue(
+          _FakeUploadRepository((job, onProgress) async {
+            if (shouldFail) throw Exception('fail');
+          }),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(uploadQueueControllerProvider.notifier);
+    await controller.startUpload(transaction: _transaction(), image: _image());
+
+    shouldFail = false;
+    await controller.retry(_transaction());
+
+    final events = container.read(debugAnalyticsServiceProvider);
+    expect(
+      events.map((event) => event.name),
+      containsAll([
+        AnalyticsEventName.receiptUploadStarted,
+        AnalyticsEventName.receiptUploadFailed,
+        AnalyticsEventName.receiptUploadRetried,
+        AnalyticsEventName.receiptUploadSucceeded,
+      ]),
+    );
+    for (final event in events) {
+      expect(
+        event.properties.keys,
+        everyElement(isIn(DebugAnalyticsService.allowedPropertyKeys)),
+      );
+    }
+    expect(
+      events
+          .singleWhere(
+            (event) => event.name == AnalyticsEventName.receiptUploadRetried,
+          )
+          .properties['receiptStatus'],
+      ReceiptStatus.failed.name,
+    );
   });
 }
 
