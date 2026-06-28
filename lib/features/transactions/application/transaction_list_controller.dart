@@ -1,3 +1,4 @@
+import 'package:corporate_card_companion/app/brand/brand_controller.dart';
 import 'package:corporate_card_companion/features/transactions/data/transaction_fixture_data_source.dart';
 import 'package:corporate_card_companion/features/transactions/data/transaction_repository_impl.dart';
 import 'package:corporate_card_companion/features/transactions/domain/transaction.dart';
@@ -30,13 +31,14 @@ final transactionListControllerProvider =
 class TransactionListController extends AsyncNotifier<List<Transaction>> {
   @override
   Future<List<Transaction>> build() async {
+    final brand = ref.watch(brandControllerProvider);
     if (ref.read(failNextTransactionLoadProvider)) {
       ref.read(failNextTransactionLoadProvider.notifier).set(false);
       throw Exception('transaction_load_failed');
     }
     return ref
         .watch(transactionRepositoryProvider)
-        .fetchTransactions(brandId: 'business');
+        .fetchTransactions(brandId: brand.id);
   }
 
   void retry() {

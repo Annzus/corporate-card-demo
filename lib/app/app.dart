@@ -1,3 +1,4 @@
+import 'package:corporate_card_companion/app/brand/brand_controller.dart';
 import 'package:corporate_card_companion/app/router.dart';
 import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
 import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
@@ -22,20 +23,22 @@ class _BizCardDemoAppState extends ConsumerState<BizCardDemoApp> {
           .read(debugAnalyticsServiceProvider.notifier)
           .track(
             AnalyticsEventName.appOpened,
-            properties: {'brandId': 'business'},
+            properties: {'brandId': ref.read(brandControllerProvider).id},
           );
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final brand = ref.watch(brandControllerProvider);
+
     return MaterialApp.router(
-      title: 'BizCard Demo',
+      title: brand.displayName,
       locale: const Locale('ja'),
       supportedLocales: const [Locale('ja')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        colorScheme: ColorScheme.fromSeed(seedColor: brand.themeSeed),
         useMaterial3: true,
       ),
       routerConfig: appRouter,

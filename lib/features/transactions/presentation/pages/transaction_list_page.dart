@@ -1,3 +1,4 @@
+import 'package:corporate_card_companion/app/brand/brand_controller.dart';
 import 'package:corporate_card_companion/core/analytics/analytics_event.dart';
 import 'package:corporate_card_companion/core/analytics/debug_analytics_service.dart';
 import 'package:corporate_card_companion/core/formatting/date_formatter.dart';
@@ -29,11 +30,12 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final brand = ref.read(brandControllerProvider);
       ref
           .read(debugAnalyticsServiceProvider.notifier)
           .track(
             AnalyticsEventName.transactionListViewed,
-            properties: {'brandId': 'business'},
+            properties: {'brandId': brand.id},
           );
     });
   }
@@ -42,6 +44,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionListControllerProvider);
     final uploadJobs = ref.watch(uploadQueueControllerProvider);
+    final brand = ref.watch(brandControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -82,7 +85,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           if (items.isEmpty) {
             return const Center(child: Text('該当する明細はありません'));
           }
-          final rows = _buildRows(items, _filter, uploadJobs);
+          final rows = _buildRows(items, _filter, uploadJobs, brand.id);
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: rows.length,
@@ -91,6 +94,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
               return switch (row) {
                 _SummaryRow(:final transactions) => TransactionSummaryCard(
                   transactions: transactions,
+                  cardLabel: brand.cardLabel,
                 ),
                 _FilterRow() => _FilterChips(
                   selected: _filter,
@@ -103,7 +107,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                         .read(debugAnalyticsServiceProvider.notifier)
                         .track(
                           AnalyticsEventName.transactionFilterChanged,
-                          properties: {'brandId': 'business'},
+                          properties: {'brandId': brand.id},
                         );
                   },
                 ),
@@ -142,11 +146,13 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     List<Transaction> transactions,
     TransactionFilter filter,
     List<UploadJob> uploadJobs,
+    String brandId,
   ) {
     final filtered = filter.apply(transactions);
     final rows = <_ListRow>[_SummaryRow(transactions), const _FilterRow()];
     final visibleJob = uploadJobs
         .where((job) => job.state != UploadJobState.succeeded)
+        .where((job) => job.brandId == brandId)
         .firstOrNull;
     if (visibleJob != null) rows.add(_UploadRow(visibleJob));
     if (filtered.isEmpty) return [...rows, const _EmptyRow()];

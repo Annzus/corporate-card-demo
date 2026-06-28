@@ -5,9 +5,14 @@ import 'package:corporate_card_companion/features/transactions/domain/transactio
 import 'package:flutter/material.dart';
 
 class TransactionSummaryCard extends StatelessWidget {
-  const TransactionSummaryCard({super.key, required this.transactions});
+  const TransactionSummaryCard({
+    super.key,
+    required this.transactions,
+    required this.cardLabel,
+  });
 
   final List<Transaction> transactions;
+  final String cardLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +36,8 @@ class TransactionSummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(cardLabel, style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 4),
             Text(
               first.cardNickname,
               style: Theme.of(context).textTheme.titleMedium,

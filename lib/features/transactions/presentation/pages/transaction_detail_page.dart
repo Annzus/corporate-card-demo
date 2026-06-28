@@ -105,7 +105,11 @@ class _TransactionDetailContentState
     final job = ref.watch(
       uploadQueueControllerProvider.select(
         (jobs) => jobs
-            .where((job) => job.transactionId == transaction.id)
+            .where(
+              (job) =>
+                  job.brandId == transaction.brandId &&
+                  job.transactionId == transaction.id,
+            )
             .firstOrNull,
       ),
     );

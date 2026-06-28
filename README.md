@@ -7,7 +7,7 @@ Flutter demo for a fictional corporate card receipt workflow. The app helps a ca
 - Japanese UI for transaction list, detail, receipt selection, mock upload, and demo settings.
 - Fixture-backed data only. No real card data, payment, backend, OCR, AI API, or OS-level background upload.
 - Upload state is kept in an app-level Riverpod controller, so the list can show upload progress after leaving the detail page.
-- `brandId` is passed through repository and upload calls. Phase 8 will add the visible brand switch UI.
+- `brandId` is passed through repository and upload calls. Demo settings can switch between Business and Executive brands.
 
 ## Run
 
@@ -60,7 +60,7 @@ Tracked event names:
 - `receipt_upload_succeeded`
 - `receipt_upload_failed`
 - `receipt_upload_retried`
-- `brand_switched` is reserved for Phase 8
+- `brand_switched`
 
 Allowed properties only:
 
@@ -110,5 +110,5 @@ Current tests cover:
 
 - Debug Analytics is in memory and resets on restart.
 - Upload is app-process async work only, not OS background transfer.
-- Brand switching UI is not implemented until Phase 8.
+- Brand switching uses local in-memory config only, not remote brand configuration or build flavors.
 - README is still intentionally short; Phase 10 will turn it into the final presentation document.

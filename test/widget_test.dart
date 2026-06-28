@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:corporate_card_companion/app/brand/brand_controller.dart';
 import 'package:corporate_card_companion/app/app.dart';
 import 'package:corporate_card_companion/app/router.dart';
 import 'package:corporate_card_companion/features/receipt_upload/application/receipt_image_picker.dart';
@@ -83,6 +84,71 @@ void main() {
     expect(find.text('¥12,800'), findsWidgets);
     expect(find.text('証憑が未提出です'), findsOneWidget);
     expect(find.text('開発チームカード ・ •••• 4242'), findsOneWidget);
+  });
+
+  testWidgets('switches brand and reloads transactions', (tester) async {
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository.byBrand((brandId) async {
+          return brandId == 'executive'
+              ? [
+                  _transaction(
+                    id: 'txn_executive_001',
+                    brandId: 'executive',
+                    merchantName: 'GINZA DINING',
+                  ),
+                ]
+              : [_transaction()];
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('AWS JAPAN'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('デモ設定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Executive'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('GINZA DINING'), findsOneWidget);
+    expect(find.text('AWS JAPAN'), findsNothing);
+    expect(find.text('エグゼクティブカード'), findsOneWidget);
+  });
+
+  testWidgets('old brand detail is not shown after brand switch', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository.byBrand((brandId) async {
+          return brandId == 'executive'
+              ? [
+                  _transaction(
+                    id: 'txn_executive_001',
+                    brandId: 'executive',
+                    merchantName: 'GINZA DINING',
+                  ),
+                ]
+              : [_transaction()];
+        }),
+        initialLocation: '/transactions/txn_business_001',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('AWS JAPAN'), findsOneWidget);
+
+    final context = tester.element(find.byType(BizCardDemoApp));
+    ProviderScope.containerOf(
+      context,
+    ).read(brandControllerProvider.notifier).select('executive');
+    await tester.pumpAndSettle();
+
+    expect(find.text('対象の明細が見つかりません'), findsOneWidget);
+    expect(find.text('AWS JAPAN'), findsNothing);
   });
 
   testWidgets('filters missing receipts and keeps filter after detail pop', (
@@ -259,6 +325,62 @@ void main() {
     uploadCompleter.complete();
   });
 
+  testWidgets('hides upload banner after switching to another brand', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final uploadCompleter = Completer<void>();
+
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository.byBrand((brandId) async {
+          return brandId == 'executive'
+              ? [
+                  _transaction(
+                    id: 'txn_executive_001',
+                    brandId: 'executive',
+                    merchantName: 'GINZA DINING',
+                  ),
+                ]
+              : [_transaction()];
+        }),
+        initialLocation: '/transactions/txn_business_001',
+        imagePicker: _FakeReceiptImagePicker(
+          () async => PickedReceiptImage(
+            fileName: 'receipt.png',
+            bytes: _transparentPngBytes(),
+          ),
+        ),
+        uploadRepository: _FakeUploadRepository(
+          (job, onProgress) => uploadCompleter.future,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('証憑を添付'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'アップロード'));
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('アップロード中 0%'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('デモ設定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Executive'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('GINZA DINING'), findsOneWidget);
+    expect(find.text('アップロード中 0%'), findsNothing);
+
+    uploadCompleter.complete();
+  });
+
   testWidgets('retries failed receipt upload', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -328,13 +450,16 @@ Widget _appWithRepository(
 }
 
 final class _FakeTransactionRepository implements TransactionRepository {
-  _FakeTransactionRepository(this._fetch);
+  _FakeTransactionRepository(Future<List<Transaction>> Function() fetch)
+    : _fetch = ((_) => fetch());
 
-  final Future<List<Transaction>> Function() _fetch;
+  _FakeTransactionRepository.byBrand(this._fetch);
+
+  final Future<List<Transaction>> Function(String brandId) _fetch;
 
   @override
   Future<List<Transaction>> fetchTransactions({required String brandId}) {
-    return _fetch();
+    return _fetch(brandId);
   }
 }
 
@@ -363,6 +488,7 @@ final class _FakeUploadRepository implements ReceiptUploadRepository {
 
 Transaction _transaction({
   String id = 'txn_business_001',
+  String brandId = 'business',
   String cardId = 'card_business_01',
   String cardNickname = '開発チームカード',
   String cardLast4 = '4242',
@@ -372,7 +498,7 @@ Transaction _transaction({
 }) {
   return Transaction(
     id: id,
-    brandId: 'business',
+    brandId: brandId,
     cardId: cardId,
     cardNickname: cardNickname,
     cardLast4: cardLast4,
