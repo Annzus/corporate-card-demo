@@ -8,6 +8,7 @@ import 'package:corporate_card_companion/features/receipt_upload/application/rec
 import 'package:corporate_card_companion/features/receipt_upload/application/upload_queue_controller.dart';
 import 'package:corporate_card_companion/features/receipt_upload/domain/receipt_upload_repository.dart';
 import 'package:corporate_card_companion/features/receipt_upload/domain/upload_job.dart';
+import 'package:corporate_card_companion/features/receipt_upload/presentation/widgets/upload_status_banner.dart';
 import 'package:corporate_card_companion/features/transactions/application/transaction_list_controller.dart';
 import 'package:corporate_card_companion/features/transactions/domain/money.dart';
 import 'package:corporate_card_companion/features/transactions/domain/receipt_status.dart';
@@ -261,6 +262,26 @@ void main() {
     expect(editableText.controller.text.length, 200);
   });
 
+  testWidgets('detail keeps receipt actions visible with large text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(
+      _appWithRepository(
+        _FakeTransactionRepository(() async => [_transaction()]),
+        initialLocation: '/transactions/txn_business_001',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('証憑を添付'), findsOneWidget);
+    expect(find.text('アップロード'), findsOneWidget);
+  });
+
   testWidgets('handles cancelled and failed receipt selection', (tester) async {
     var fail = false;
     await tester.pumpWidget(
@@ -323,6 +344,37 @@ void main() {
     expect(find.text('receipt.png'), findsOneWidget);
 
     uploadCompleter.complete();
+  });
+
+  testWidgets('upload banner exposes semantic status', (tester) async {
+    final semantics = tester.ensureSemantics();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: UploadStatusBanner(
+            job: UploadJob(
+              id: 'job_1',
+              transactionId: 'txn_business_001',
+              brandId: 'business',
+              fileName: 'receipt.png',
+              idempotencyKey: 'key_1',
+              progress: 0.4,
+              state: UploadJobState.uploading,
+              retryCount: 0,
+              errorMessage: null,
+            ),
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSemantics(find.byType(UploadStatusBanner)).label,
+      contains('アップロード状態: アップロード中 40%'),
+    );
+    semantics.dispose();
   });
 
   testWidgets('hides upload banner after switching to another brand', (

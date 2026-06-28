@@ -105,10 +105,13 @@ Current tests cover:
 - Duplicate active upload prevention
 - Retry preserving the same idempotency key
 - Analytics property whitelisting
+- List/detail golden snapshots
+- Large text and small-screen layout smoke coverage
 
 ## Known Limits
 
 - Debug Analytics is in memory and resets on restart.
 - Upload is app-process async work only, not OS background transfer.
 - Brand switching uses local in-memory config only, not remote brand configuration or build flavors.
+- Golden files are local Flutter test baselines and may need regeneration after intentional UI changes.
 - README is still intentionally short; Phase 10 will turn it into the final presentation document.

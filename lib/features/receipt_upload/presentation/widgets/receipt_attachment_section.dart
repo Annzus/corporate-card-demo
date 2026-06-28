@@ -135,11 +135,14 @@ class _JobStatus extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(text),
+        Semantics(label: 'アップロード状態: $text', child: Text(text)),
         if (job.state == UploadJobState.uploading)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: LinearProgressIndicator(value: job.progress),
+            child: LinearProgressIndicator(
+              value: job.progress,
+              semanticsLabel: 'アップロード進捗',
+            ),
           ),
       ],
     );
@@ -162,13 +165,17 @@ class _SelectedImage extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.memory(
-            image.bytes,
-            width: 88,
-            height: 88,
-            fit: BoxFit.cover,
+        Semantics(
+          label: '選択済み証憑画像',
+          image: true,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              image.bytes,
+              width: 88,
+              height: 88,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
         const SizedBox(width: 12),

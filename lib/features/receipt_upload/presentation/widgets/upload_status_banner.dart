@@ -16,29 +16,40 @@ class UploadStatusBanner extends StatelessWidget {
       UploadJobState.failed => 'アップロード失敗',
     };
 
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.cloud_upload_outlined),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(title)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(job.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
-              if (job.state == UploadJobState.uploading) ...[
+    return Semantics(
+      button: true,
+      label: 'アップロード状態: $title',
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.cloud_upload_outlined),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(title)),
+                  ],
+                ),
                 const SizedBox(height: 8),
-                LinearProgressIndicator(value: job.progress),
+                Text(
+                  job.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (job.state == UploadJobState.uploading) ...[
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: job.progress,
+                    semanticsLabel: 'アップロード進捗',
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
